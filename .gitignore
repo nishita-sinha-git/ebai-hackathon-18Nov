@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+smoke-report.txt
+
+# Previous prototype, superseded by app/ (kept locally only)
+_parked_code/
+
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store
+
+# Runtime data and secrets
+data/
+.env
+reports/*/
+.streamlit/

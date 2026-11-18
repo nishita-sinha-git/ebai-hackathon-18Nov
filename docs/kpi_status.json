@@ -1,0 +1,6 @@
+[
+  {"tier": "Build v0.2 (local)", "latency_p95_ms": "not measured", "rps": "not measured", "release": "not tested"},
+  {"tier": "5K", "latency_p95_ms": "not measured", "rps": "not measured", "release": "blocked"},
+  {"tier": "10K", "latency_p95_ms": "not measured", "rps": "not measured", "release": "blocked"},
+  {"tier": "50K", "latency_p95_ms": "not measured", "rps": "not measured", "release": "blocked"}
+]

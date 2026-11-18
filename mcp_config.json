@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "hybrid-rag": {
+      "command": "python",
+      "args": ["-m", "app.mcp_servers.rag_server"],
+      "transport": "stdio",
+      "timeout_ms": 150
+    }
+  },
+  "plugins": [
+    {"name": "pii_redactor", "stage": "PRE_EXECUTION", "priority": 10, "fail_closed": true},
+    {"name": "injection_shield", "stage": "PRE_EXECUTION", "priority": 20, "fail_closed": true},
+    {"name": "circuit_breaker", "stage": "TOOL_DISPATCH", "priority": 10, "max_identical_calls": 2}
+  ]
+}

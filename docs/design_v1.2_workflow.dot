@@ -1,0 +1,109 @@
+digraph workflow_orchestration {
+	graph [compound=true dpi=300 fontname="DejaVu Sans" fontsize=13 label="The Unreliable Assistant: Agentic Workflow Orchestration (Gate 2)" labelloc=t newrank=true nodesep=0.45 pad=0.4 rankdir=TB ranksep=0.6]
+	node [color="#44546A" fillcolor="#F4F6F8" fontname="DejaVu Sans" fontsize=11 style="rounded,filled"]
+	edge [color="#44546A" fontname="DejaVu Sans" fontsize=9]
+	subgraph cluster_ingress {
+		color="#2E75B6" fontcolor="#2E75B6" label="Ingress & Security Layer" style="rounded,dashed"
+		ingress [label="Ingress
+NGINX / Envoy · FastAPI
+X-Tenant-ID check" shape=box]
+		pii [label="Pre-Exec: PII Redactor
+(fail-closed, prio 10)" fillcolor="#FDF2E9" shape=box]
+		inj [label="Injection Classifier
+(Pre-Exec, fail-closed, prio 20)" fillcolor="#FDF2E9" shape=box]
+		cache [label="Redis Semantic Cache Check
+cache:v1:{tenant}:{sha256}" fillcolor="#E9F7EF" shape=box]
+		ingress -> pii
+		pii -> inj
+		inj -> cache
+	}
+	subgraph cluster_triage {
+		color="#7030A0" fontcolor="#7030A0" label="Triage & Subagent Routing" style="rounded,dashed"
+		triage [label="Triage Agent
+temperature = 0.0 · ≤ 25 ms
+(intent, domain, risk_tier, complexity)" fillcolor="#F3EBFA" shape=box]
+		direct [label="Direct Response
+DIRECT_ANSWER" shape=box]
+		retr [label="Retrieval Subagent
+read-only · HYBRID_RAG" shape=box]
+		exec [label="Execution Subagent
+TIER_2 / TIER_3 · TRANSACTION_EXEC" shape=box]
+		reject [label="Refusal
+REJECT_OOS" fillcolor="#FBE5E5" shape=box]
+		audit [label="Audit (Verification) Subagent
+NLI claim check · RAGAS triad · OTel" fillcolor="#F3EBFA" shape=box]
+	}
+	subgraph cluster_mcp {
+		color="#C55A11" fontcolor="#C55A11" label="MCP JSON-RPC 2.0 & 3-Stage Hybrid RAG Pipeline" style="rounded,dashed"
+		rag [label="mcp-hybrid-rag  (stdio)
+hybrid_retrieve · rag://chunks/{id}" fillcolor="#FDF2E9" shape=component]
+		bm25 [label="Stage 1: BM25Okapi
+k1=1.25 · b=0.75 · top_k=50
+< 12 ms" shape=box]
+		bi [label="Stage 2: Bi-Encoder
+bge-large ONNX + FAISS HNSW
+efSearch=64 · top_k=50 · < 25 ms" shape=box]
+		rrf [label="RRF Fusion
+k=60 · dedup chunk_hash
+pool=40 · < 3 ms" shape=box]
+		ce [label="Stage 3: Cross-Encoder
+bge-reranker-v2-m3 ONNX FP16
+batch=32 · sigmoid > 0.42 · < 45 ms" shape=box]
+		"graph" [label="mcp-graphify-vault  (stdio)
+graph_subgraph · depth ≤ 2
+~320 tokens" fillcolor="#FDF2E9" shape=component]
+		state [label="mcp-state-store  (Streamable HTTP)
+session_facts · pending_approvals · audit" fillcolor="#FDF2E9" shape=component]
+		rag -> bm25
+		rag -> bi
+		bm25 -> rrf
+		bi -> rrf
+		rrf -> ce
+	}
+	subgraph cluster_control {
+		color="#375623" fontcolor="#375623" label="Control Plane & Egress" style="rounded,dashed"
+		react [label="Bounded ReAct Loop
+max_steps = 5 · per_step 120 ms
+loop budget 450 ms" fillcolor="#E9F7EF" shape=box]
+		cb [label="Circuit Breaker
+(tool, args_hash) ≥ 2 fails
+→ HALTED_BREAKER" fillcolor="#FBE5E5" shape=diamond]
+		hitl [label="Tier 3 HITL Gate
+PENDING_APPROVAL in Postgres" fillcolor="#FBE5E5" shape=box]
+		post [label="Post-Execution
+RAGAS auditor · OTel export" fillcolor="#E9F7EF" shape=box]
+		resp [label="Response
+ANSWERED · ABSTAINED · HALTED_BREAKER
+PENDING_APPROVAL · REJECTED" shape=box]
+		react -> cb
+		cb -> hitl
+		hitl -> post
+		post -> resp
+	}
+	redis [label="Redis Cluster" fillcolor="#E9F7EF" shape=cylinder]
+	pg [label="PostgreSQL + pgvector" fillcolor="#E9F7EF" shape=cylinder]
+	otel [label="OTel Collector → Prometheus · Tempo · Grafana" shape=box style="rounded,dashed"]
+	cache -> resp [label="HIT (tenant-verified)" color="#375623" constraint=false fontcolor="#375623"]
+	cache -> triage [label=MISS]
+	triage -> direct [label=DIRECT_ANSWER]
+	triage -> retr [label=HYBRID_RAG]
+	triage -> exec [label=TRANSACTION_EXEC]
+	triage -> reject [label=REJECT_OOS]
+	retr -> rag [label="JSON-RPC tools/call"]
+	retr -> "graph" [label="JSON-RPC tools/call"]
+	exec -> state [label="JSON-RPC tools/call"]
+	ce -> react [label="top-4 verified chunks
++ confidence"]
+	"graph" -> react [label="minimal subgraph"]
+	state -> hitl [label="TIER_3 write
+PENDING_APPROVAL" style=dashed]
+	direct -> react [label=grounded]
+	exec -> react [label="validated
+args"]
+	react -> audit [label="draft answer" constraint=false]
+	audit -> post [label="vetoes ungrounded drafts"]
+	reject -> resp [label=refusal]
+	post -> otel [label=spans style=dashed]
+	cache -> redis [arrowhead=none style=dotted]
+	state -> pg [arrowhead=none style=dotted]
+}
